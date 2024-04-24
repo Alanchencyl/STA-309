@@ -1,0 +1,265 @@
+---
+title: "Midterm 2"
+author: "Yulun Chen"
+date: "2024-04-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Problem 1
+```{r, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(maps)
+library(readr)
+library(patchwork)
+
+# Load data
+milk_production <- read_csv("https://raw.githubusercontent.com/oconnellmj/sta309/main/milk-production-tonnes.csv")
+milk_consumption <- read_csv("https://raw.githubusercontent.com/oconnellmj/sta309/main/per-capita-milk-consumption.csv")
+world_map <- map_data("world")
+
+# Replace "United States" with "USA" in the Entity column of milk_production
+milk_production <- milk_production %>%
+  mutate(Entity = ifelse(Entity == "United States", "USA", Entity))
+
+# Replace "United States" with "USA" in the Entity column of milk_consumption
+milk_consumption <- milk_consumption %>%
+  mutate(Entity = ifelse(Entity == "United States", "USA", Entity))
+
+# Merge data
+prod_map_data <- world_map %>%
+  left_join(milk_production, by = c("region" = "Entity"))
+
+cons_map_data <- world_map %>%
+  left_join(milk_consumption, by = c("region" = "Entity"))
+
+# Calculate average production and consumption for each region
+avg_production <- prod_map_data %>%
+  group_by(region) %>%
+  summarize(avg_production = mean(`Milk Production (tonnes)`, na.rm = TRUE))
+
+avg_consumption <- cons_map_data %>%
+  group_by(region) %>%
+  summarize(avg_consumption = mean(`Milk consumption (kilograms per year per capita)`, na.rm = TRUE))
+
+# Plot map of average production
+production_map <- ggplot(data = avg_production, aes(map_id = region, fill = avg_production)) +
+  geom_map(map = world_map) +
+  expand_limits(x = world_map$long, y = world_map$lat) +
+  scale_fill_gradient(low = "skyblue", high = "darkblue", na.value = "grey50") +
+  labs(title = "Average Dairy Production (1961-2022)", fill = "Production (tonnes)") +
+  theme_void()
+
+# Plot map of average consumption
+consumption_map <- ggplot(data = avg_consumption, aes(map_id = region, fill = avg_consumption)) +
+  geom_map(map = world_map) +
+  expand_limits(x = world_map$long, y = world_map$lat) +
+  scale_fill_gradient(low = "yellow", high = "red", na.value = "grey50") +
+  labs(title = "Average Dairy Consumption (1961-2022)", fill = "Consumption (kg per capita)") +
+  theme_void()
+
+# Calculate world average production and consumption over time
+world_avg_production <- milk_production %>%
+  mutate(Year = as.numeric(Year)) %>%
+  group_by(Year) %>%
+  summarise(avg_production = mean(`Milk Production (tonnes)`, na.rm = TRUE)) %>%
+  pivot_longer(cols = -Year, names_to = "Year_Production", values_to = "Production")
+
+world_avg_consumption <- milk_consumption %>%
+  mutate(Year = as.numeric(Year)) %>%
+  group_by(Year) %>%
+  summarise(avg_consumption = mean(`Milk consumption (kilograms per year per capita)`, na.rm = TRUE)) %>%
+  pivot_longer(cols = -Year, names_to = "Year_Consumption", values_to = "Consumption")
+
+# Plot changes in world average dairy production over time
+production_over_time <- ggplot(world_avg_production, aes(x = Year, y = Production)) +
+  geom_line() +
+  labs(title = "World Average Dairy Production Over Time",
+       x = "Year", y = "Production (tonnes)") +
+  theme_minimal()
+
+# Plot changes in world average dairy consumption over time
+consumption_over_time <- ggplot(world_avg_consumption, aes(x = Year, y = Consumption)) +
+  geom_line() +
+  labs(title = "World Average Dairy Consumption Over Time",
+       x = "Year", y = "Consumption (kg per capita)") +
+  theme_minimal()
+
+# Arrange plots into a dashboard
+dashboard <- (production_map + consumption_map) / (production_over_time + consumption_over_time) +
+  plot_annotation(
+    title = "Global Dairy Production and Consumption Dashboard",
+    subtitle = "1961-2022",
+    caption = "Source: Custom Dataset"
+  ) +
+  plot_layout(heights = c(3, 1))
+
+# Save the dashboard as an image
+ggsave(plot = dashboard, filename = "dairy_dashboard.png",
+       width = 18, height = 12, dpi = 300)
+
+```
+#Problem 2
+
+```{r,warning=FALSE}
+library(tidyverse)
+library(tidytext)
+library(ggwordcloud)
+
+# Load the lyrics data for each song in Taylor Swift's album "1989"
+
+All_You_Had_to_Do_Was_Stay <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/All-You-Had-to-Do-Was-Stay.txt")
+wildest_dreams <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/Wildest-Dreams.txt")
+How_You_Get_The_Girl <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/How-You-Get-The-Girl.txt")
+welcome_to_new_york <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/Welcome-to-New-York.txt")
+blank_space <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/Blank-Space.txt")
+style <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/Style.txt")
+out_of_the_woods <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/Out-Of-The-Woods.txt")
+shake_it_off <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/Shake-It-Off.txt")
+i_wish_you_would <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/I-Wish-You-Would.txt")
+bad_blood <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/Bad-Blood.txt")
+how_you_get_the_girl <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/Wildest-Dreams.txt")
+this_love <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/This-Love.txt")
+i_know_places <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/I-Know-Places.txt")
+clean <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_1989/Clean.txt")
+
+# Remove the first row from each lyric data frame
+All_You_Had_to_Do_Was_Stay <- All_You_Had_to_Do_Was_Stay[-1]
+wildest_dreams <- wildest_dreams[-1]
+How_You_Get_The_Girl <- How_You_Get_The_Girl[-1]
+welcome_to_new_york <- welcome_to_new_york[-1]
+blank_space <- blank_space[-1]
+style <- style[-1]
+out_of_the_woods <- out_of_the_woods[-1]
+shake_it_off <- shake_it_off[-1]
+i_wish_you_would <- i_wish_you_would[-1]
+bad_blood <- bad_blood[-1]
+how_you_get_the_girl <- how_you_get_the_girl[-1]
+this_love <- this_love[-1]
+i_know_places <- i_know_places[-1]
+clean <- clean[-1]
+
+# Combine all song lyrics into a single text
+all_lyrics <- c(All_You_Had_to_Do_Was_Stay, wildest_dreams, How_You_Get_The_Girl, welcome_to_new_york, 
+                blank_space, style, out_of_the_woods, shake_it_off, i_wish_you_would, bad_blood, 
+                how_you_get_the_girl, this_love, i_know_places, clean)
+all_lyrics_text <- paste(all_lyrics, collapse = " ")
+
+# Tokenize the text into individual words
+words <- unlist(strsplit(all_lyrics_text, "\\s+"))
+
+# Load stopwords data
+data(stop_words)
+
+# Remove stopwords from the tokenized words
+clean_words <- words[!tolower(words) %in% stop_words$word]
+
+# Create a word frequency table
+word_freq <- table(clean_words)
+
+# Convert the word frequency table to a data frame
+word_freq_df <- as.data.frame(word_freq, stringsAsFactors = FALSE)
+names(word_freq_df) <- c("Word", "Frequency")
+
+# Generate a word cloud
+set.seed(42) # for reproducibility
+wordcloud <- ggplot(word_freq_df, aes(label = Word, size = Frequency)) +
+  geom_text_wordcloud() +
+  theme_minimal()
+
+# Display the word cloud
+print(wordcloud)
+
+# Load the lyrics data for folklore
+august <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Baugust.txt")
+betty <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bbetty.txt")
+cardigan <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bcardigan.txt")
+epiphany <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bepiphany.txt")
+exile <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bexile.txt")
+hoax <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bhoax.txt")
+illicit_affairs <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Billicit-affairs.txt")
+invisible_string <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Binvisible-string.txt")
+mad_woman <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bmad-woman.txt")
+mirrorball <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bmirrorball.txt")
+my_tears_ricochet <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bmy-tears-ricochet.txt")
+peace <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bpeace.txt")
+seven <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bseven.txt")
+the_1 <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bthe-1.txt")
+the_last_great_american_dynasty <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bthe-last-great-american-dynasty.txt")
+this_is_me_trying <- readLines("https://raw.githubusercontent.com/adashofdata/taylor_swift_data/main/Taylor_Swift_Genius/Taylor-Swift_folklore/%E2%80%8Bthis-is-me-trying.txt")
+
+# Remove the first row from each lyric data frame
+august <- august[-1]
+betty <- betty[-1]
+cardigan <- cardigan[-1]
+epiphany <- epiphany[-1]
+exile <- exile[-1]
+hoax <- hoax[-1]
+illicit_affairs <- illicit_affairs[-1]
+invisible_string <- invisible_string[-1]
+mad_woman <- mad_woman[-1]
+mirrorball <- mirrorball[-1]
+my_tears_ricochet <- my_tears_ricochet[-1]
+peace <- peace[-1]
+seven <- seven[-1]
+the_1 <- the_1[-1]
+the_last_great_american_dynasty <- the_last_great_american_dynasty[-1]
+this_is_me_trying <- this_is_me_trying[-1]
+
+# Combine all song lyrics into a single text
+all_lyrics_folklore <- c(august, betty, cardigan, epiphany, exile, hoax, illicit_affairs, invisible_string, mad_woman,
+                         mirrorball, my_tears_ricochet, peace, seven, the_1, the_last_great_american_dynasty, this_is_me_trying)
+all_lyrics_text_folklore <- paste(all_lyrics_folklore, collapse = " ")
+
+# Tokenize the text into individual words
+words_folklore <- unlist(strsplit(all_lyrics_text_folklore, "\\s+"))
+
+# Load stopwords data
+data(stop_words)
+
+# Remove stopwords from the tokenized words
+clean_words_folklore <- words_folklore[!tolower(words_folklore) %in% stop_words$word]
+
+# Create a word frequency table
+word_freq_folklore <- table(clean_words_folklore)
+
+# Convert the word frequency table to a data frame
+word_freq_df_folklore <- as.data.frame(word_freq_folklore, stringsAsFactors = FALSE)
+names(word_freq_df_folklore) <- c("Word", "Frequency")
+
+# Generate a word cloud for folklore
+set.seed(42) # for reproducibility
+wordcloud_folklore <- ggplot(word_freq_df_folklore, aes(label = Word, size = Frequency)) +
+  geom_text_wordcloud() +
+  theme_minimal()
+
+# Display the word cloud for folklore
+print(wordcloud_folklore)
+
+lyrics_df <- bind_rows(
+  tibble(album = "1989", lyrics = unlist(strsplit(all_lyrics, "\\s+"))),
+  tibble(album = "Folklore", lyrics = unlist(strsplit(all_lyrics_folklore, "\\s+")))
+)
+
+# Remove stopwords and tokenize
+tidy_lyrics <- lyrics_df %>%
+  unnest_tokens(word, lyrics) %>%
+  anti_join(stop_words, by = "word")
+
+# Perform sentiment analysis using the Bing lexicon
+sentiment_analysis <- tidy_lyrics %>%
+  inner_join(get_sentiments("bing"), by = "word") %>%
+  count(album, sentiment) %>%
+  group_by(album) %>%
+  mutate(percentage = n / sum(n))
+
+# Plotting the sentiment analysis results
+ggplot(sentiment_analysis, aes(x = album, y = percentage, fill = sentiment)) +
+  geom_col() +
+  labs(title = "Sentiment Analysis of Taylor Swift's Albums", x = "Album", y = "Percentage of Sentiment Words", fill = "Sentiment") +
+  theme_minimal()
+```
